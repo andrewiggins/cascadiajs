@@ -312,12 +312,12 @@ export default function ({ html }) {
               },
               dotsOptions: {
                 color,
-                type: "square",
-                roundSize: false,
+                type: "dots",
+                roundSize: true,
               },
               cornersSquareOptions: {
                 color,
-                type: "square",
+                type: "extra-rounded",
               },
               cornersDotOptions: {
                 color,
@@ -328,8 +328,8 @@ export default function ({ html }) {
               },
               imageOptions: {
                 hideBackgroundDots: true,
-                imageSize: 0.2,
-                margin: 28,
+                imageSize: 0.4,
+                margin: 8,
               },
             };
           }
