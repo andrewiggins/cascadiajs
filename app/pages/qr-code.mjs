@@ -85,10 +85,19 @@ export default function ({ html }) {
             padding: 16px;
           }
 
-          #qr-canvas {
-            display: block;
-            width: 100%;
+          #qr-code {
+            align-items: center;
+            display: flex;
             height: 100%;
+            justify-content: center;
+            width: 100%;
+          }
+
+          #qr-code canvas,
+          #qr-code svg {
+            display: block;
+            height: 100%;
+            width: 100%;
           }
 
           .qr-actions {
@@ -169,12 +178,7 @@ export default function ({ html }) {
 
           <div class="qr-output">
             <div class="qr-canvas-wrap">
-              <canvas
-                id="qr-canvas"
-                width="768"
-                height="768"
-                aria-label="Generated QR code"
-              ></canvas>
+              <div id="qr-code" aria-label="Generated QR code"></div>
             </div>
             <div class="qr-actions">
               <button id="qr-download" type="button">Download PNG</button>
@@ -184,21 +188,20 @@ export default function ({ html }) {
           </div>
         </div>
 
+        <script src="https://unpkg.com/qr-code-styling@1.9.2/lib/qr-code-styling.js"></script>
         <script type="module">
-          import { toCanvas } from "https://esm.sh/qrcode@1.5.4";
-
           const qrUrlInput = document.querySelector("#qr-url");
           const qrColorPreset = document.querySelector("#qr-color-preset");
           const qrColorCustomField = document.querySelector(".qr-field-custom");
           const qrColorCustomInput = document.querySelector("#qr-color-custom");
           const qrTransparentInput = document.querySelector("#qr-transparent");
-          const qrCanvas = document.querySelector("#qr-canvas");
+          const qrCodeContainer = document.querySelector("#qr-code");
           const qrDownloadButton = document.querySelector("#qr-download");
           const qrCopyButton = document.querySelector("#qr-copy");
           const qrStatus = document.querySelector("#qr-status");
-          const qrContext = qrCanvas.getContext("2d");
           const logoPath = "/_public/images/icon.svg";
           let logoSvgText;
+          let qrCode;
           let renderId = 0;
 
           async function getLogoSvgText() {
@@ -282,46 +285,63 @@ export default function ({ html }) {
             qrColorCustomField.hidden = qrColorPreset.value !== "custom";
           }
 
-          function loadImage(src) {
-            return new Promise((resolve, reject) => {
-              const image = new Image();
-              image.onload = () => resolve(image);
-              image.onerror = reject;
-              image.src = src;
-            });
-          }
-
-          async function drawLogo(color, transparentBackground) {
+          async function getLogoDataUrl(color) {
             const svgText = await getLogoSvgText();
             const coloredSvg = svgText
               .replaceAll('fill="#fff"', \`fill="\${color}"\`)
               .replaceAll("fill='#fff'", \`fill="\${color}"\`);
-            const blob = new Blob([coloredSvg], {
-              type: "image/svg+xml;charset=utf-8",
-            });
-            const objectUrl = URL.createObjectURL(blob);
 
-            try {
-              const logo = await loadImage(objectUrl);
-              const logoSize = Math.round(qrCanvas.width * 0.2);
-              const padding = Math.round(logoSize * 0.18);
-              const backingSize = logoSize + padding * 2;
-              const backingX = Math.round((qrCanvas.width - backingSize) / 2);
-              const backingY = Math.round((qrCanvas.height - backingSize) / 2);
-              const logoX = Math.round((qrCanvas.width - logoSize) / 2);
-              const logoY = Math.round((qrCanvas.height - logoSize) / 2);
+            return \`data:image/svg+xml;charset=utf-8,\${encodeURIComponent(coloredSvg)}\`;
+          }
 
-              if (transparentBackground) {
-                qrContext.clearRect(backingX, backingY, backingSize, backingSize);
-              } else {
-                qrContext.fillStyle = "#ffffff";
-                qrContext.fillRect(backingX, backingY, backingSize, backingSize);
-              }
+          function getQrOptions({
+            url,
+            color,
+            transparentBackground,
+            logoDataUrl,
+          }) {
+            return {
+              width: 768,
+              height: 768,
+              margin: 32,
+              type: "canvas",
+              data: url,
+              image: logoDataUrl,
+              qrOptions: {
+                errorCorrectionLevel: "H",
+              },
+              dotsOptions: {
+                color,
+                type: "square",
+                roundSize: false,
+              },
+              cornersSquareOptions: {
+                color,
+                type: "square",
+              },
+              cornersDotOptions: {
+                color,
+                type: "square",
+              },
+              backgroundOptions: {
+                color: transparentBackground ? "transparent" : "#ffffff",
+              },
+              imageOptions: {
+                hideBackgroundDots: true,
+                imageSize: 0.2,
+                margin: 28,
+              },
+            };
+          }
 
-              qrContext.drawImage(logo, logoX, logoY, logoSize, logoSize);
-            } finally {
-              URL.revokeObjectURL(objectUrl);
+          function updateQrCode(options) {
+            if (!qrCode) {
+              qrCode = new window.QRCodeStyling(options);
+              qrCode.append(qrCodeContainer);
+              return;
             }
+
+            qrCode.update(options);
           }
 
           async function renderQr() {
@@ -334,29 +354,22 @@ export default function ({ html }) {
             qrCopyButton.disabled = true;
 
             if (!url) {
-              qrContext.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+              qrCodeContainer.replaceChildren();
+              qrCode = null;
               setStatus("Enter a full URL, including https://.", "error");
               return;
             }
 
             try {
-              qrContext.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
-              await toCanvas(qrCanvas, url, {
-                errorCorrectionLevel: "H",
-                margin: 2,
-                scale: 16,
-                width: qrCanvas.width,
-                color: {
-                  dark: color,
-                  light: transparentBackground ? "#ffffff00" : "#ffffff",
-                },
-              });
-              qrCanvas.style.width = "100%";
-              qrCanvas.style.height = "100%";
-
-              await drawLogo(color, transparentBackground);
-
+              const logoDataUrl = await getLogoDataUrl(color);
               if (currentRenderId !== renderId) return;
+
+              updateQrCode(getQrOptions({
+                url,
+                color,
+                transparentBackground,
+                logoDataUrl,
+              }));
 
               qrDownloadButton.disabled = false;
               qrCopyButton.disabled = false;
@@ -368,17 +381,15 @@ export default function ({ html }) {
             }
           }
 
-          function getCanvasBlob() {
-            return new Promise((resolve, reject) => {
-              qrCanvas.toBlob((blob) => {
-                if (blob) {
-                  resolve(blob);
-                } else {
-                  reject(new Error("QR code image could not be created."));
-                }
-              }, "image/png");
-            });
+          async function getQrCodeBlob() {
+            if (!qrCode) {
+              throw new Error("QR code image could not be created.");
+            }
+
+            return qrCode.getRawData("png");
           }
+
+          setColorControlVisibility();
 
           qrUrlInput.addEventListener("input", renderQr);
           qrColorPreset.addEventListener("change", () => {
@@ -389,7 +400,7 @@ export default function ({ html }) {
           qrTransparentInput.addEventListener("change", renderQr);
 
           qrDownloadButton.addEventListener("click", async () => {
-            const blob = await getCanvasBlob();
+            const blob = await getQrCodeBlob();
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "cascadiajs-qr-code.png";
@@ -404,7 +415,7 @@ export default function ({ html }) {
             }
 
             try {
-              const blob = await getCanvasBlob();
+              const blob = await getQrCodeBlob();
               await navigator.clipboard.write([
                 new ClipboardItem({ "image/png": blob }),
               ]);
