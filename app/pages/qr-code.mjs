@@ -25,7 +25,8 @@ export default function ({ html }) {
             font-weight: 500;
           }
 
-          .qr-field input {
+          .qr-field input,
+          .qr-field select {
             box-sizing: border-box;
             width: 100%;
             border: 2px solid #112378;
@@ -34,7 +35,8 @@ export default function ({ html }) {
             font: inherit;
           }
 
-          .qr-field input[type="url"] {
+          .qr-field input[type="url"],
+          .qr-field select {
             min-height: 44px;
             padding: 8px 10px;
           }
@@ -43,6 +45,29 @@ export default function ({ html }) {
             width: 96px;
             height: 44px;
             padding: 4px;
+          }
+
+          .qr-field-custom[hidden] {
+            display: none;
+          }
+
+          .qr-checkbox {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+          }
+
+          .qr-checkbox input {
+            flex: 0 0 auto;
+            width: 22px;
+            height: 22px;
+          }
+
+          .qr-checkbox label {
+            color: #112378;
+            font-family: freight-macro-pro, serif;
+            font-size: 20px;
+            font-weight: 500;
           }
 
           .qr-output {
@@ -103,7 +128,7 @@ export default function ({ html }) {
 
           @media only screen and (min-width: 768px) {
             .qr-controls {
-              grid-template-columns: 1fr auto;
+              grid-template-columns: 1fr auto auto;
               align-items: end;
             }
           }
@@ -121,9 +146,25 @@ export default function ({ html }) {
               />
             </div>
             <div class="qr-field">
-              <label for="qr-color">QR Color</label>
-              <input id="qr-color" type="color" value="#112378" />
+              <label for="qr-color-preset">QR Color</label>
+              <select id="qr-color-preset">
+                <option value="#020800">Black</option>
+                <option value="#ffffff">White</option>
+                <option value="#112378" selected>Dark Blue</option>
+                <option value="#0033ff">Blue</option>
+                <option value="#17c37b">Green</option>
+                <option value="#ffd007">Yellow</option>
+                <option value="custom">Custom</option>
+              </select>
             </div>
+            <div class="qr-field qr-field-custom" hidden>
+              <label for="qr-color-custom">Custom Color</label>
+              <input id="qr-color-custom" type="color" value="#112378" />
+            </div>
+          </div>
+          <div class="qr-checkbox">
+            <input id="qr-transparent" type="checkbox" />
+            <label for="qr-transparent">Transparent background</label>
           </div>
 
           <div class="qr-output">
@@ -147,7 +188,10 @@ export default function ({ html }) {
           import { toCanvas } from "https://esm.sh/qrcode@1.5.4";
 
           const qrUrlInput = document.querySelector("#qr-url");
-          const qrColorInput = document.querySelector("#qr-color");
+          const qrColorPreset = document.querySelector("#qr-color-preset");
+          const qrColorCustomField = document.querySelector(".qr-field-custom");
+          const qrColorCustomInput = document.querySelector("#qr-color-custom");
+          const qrTransparentInput = document.querySelector("#qr-transparent");
           const qrCanvas = document.querySelector("#qr-canvas");
           const qrDownloadButton = document.querySelector("#qr-download");
           const qrCopyButton = document.querySelector("#qr-copy");
@@ -183,6 +227,61 @@ export default function ({ html }) {
             }
           }
 
+          function getQrColor() {
+            if (qrColorPreset.value === "custom") {
+              return qrColorCustomInput.value;
+            }
+
+            return qrColorPreset.value;
+          }
+
+          function getRelativeLuminance(hexColor) {
+            const color = hexColor.replace("#", "");
+            const channels = [0, 2, 4].map((index) => {
+              const channel = Number.parseInt(color.slice(index, index + 2), 16) / 255;
+              return channel <= 0.03928
+                ? channel / 12.92
+                : ((channel + 0.055) / 1.055) ** 2.4;
+            });
+
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+          }
+
+          function getContrastRatio(color, background = "#ffffff") {
+            const colorLuminance = getRelativeLuminance(color);
+            const backgroundLuminance = getRelativeLuminance(background);
+            const lighter = Math.max(colorLuminance, backgroundLuminance);
+            const darker = Math.min(colorLuminance, backgroundLuminance);
+
+            return (lighter + 0.05) / (darker + 0.05);
+          }
+
+          function getReliabilityWarning(color, transparentBackground) {
+            const normalizedColor = color.toLowerCase();
+
+            if (normalizedColor === "#ffffff") {
+              return "White foreground is unlikely to scan on light backgrounds.";
+            }
+
+            if (transparentBackground) {
+              return "Transparent QR codes depend on the final placement surface for scan reliability.";
+            }
+
+            if (normalizedColor === "#ffd007") {
+              return "Yellow foreground on a white background may be difficult to scan.";
+            }
+
+            if (qrColorPreset.value === "custom" && getContrastRatio(color) < 3) {
+              return "This custom color has low contrast against a white background.";
+            }
+
+            return "";
+          }
+
+          function setColorControlVisibility() {
+            qrColorCustomField.hidden = qrColorPreset.value !== "custom";
+          }
+
           function loadImage(src) {
             return new Promise((resolve, reject) => {
               const image = new Image();
@@ -192,7 +291,7 @@ export default function ({ html }) {
             });
           }
 
-          async function drawLogo(color) {
+          async function drawLogo(color, transparentBackground) {
             const svgText = await getLogoSvgText();
             const coloredSvg = svgText
               .replaceAll('fill="#fff"', \`fill="\${color}"\`)
@@ -212,8 +311,13 @@ export default function ({ html }) {
               const logoX = Math.round((qrCanvas.width - logoSize) / 2);
               const logoY = Math.round((qrCanvas.height - logoSize) / 2);
 
-              qrContext.fillStyle = "#ffffff";
-              qrContext.fillRect(backingX, backingY, backingSize, backingSize);
+              if (transparentBackground) {
+                qrContext.clearRect(backingX, backingY, backingSize, backingSize);
+              } else {
+                qrContext.fillStyle = "#ffffff";
+                qrContext.fillRect(backingX, backingY, backingSize, backingSize);
+              }
+
               qrContext.drawImage(logo, logoX, logoY, logoSize, logoSize);
             } finally {
               URL.revokeObjectURL(objectUrl);
@@ -222,7 +326,8 @@ export default function ({ html }) {
 
           async function renderQr() {
             const url = validateUrl();
-            const color = qrColorInput.value;
+            const color = getQrColor();
+            const transparentBackground = qrTransparentInput.checked;
             const currentRenderId = ++renderId;
 
             qrDownloadButton.disabled = true;
@@ -235,6 +340,7 @@ export default function ({ html }) {
             }
 
             try {
+              qrContext.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
               await toCanvas(qrCanvas, url, {
                 errorCorrectionLevel: "H",
                 margin: 2,
@@ -242,19 +348,20 @@ export default function ({ html }) {
                 width: qrCanvas.width,
                 color: {
                   dark: color,
-                  light: "#ffffff",
+                  light: transparentBackground ? "#ffffff00" : "#ffffff",
                 },
               });
               qrCanvas.style.width = "100%";
               qrCanvas.style.height = "100%";
 
-              await drawLogo(color);
+              await drawLogo(color, transparentBackground);
 
               if (currentRenderId !== renderId) return;
 
               qrDownloadButton.disabled = false;
               qrCopyButton.disabled = false;
-              setStatus("");
+              const reliabilityWarning = getReliabilityWarning(color, transparentBackground);
+              setStatus(reliabilityWarning, reliabilityWarning ? "warning" : "");
             } catch (error) {
               console.error(error);
               setStatus("QR code could not be generated.", "error");
@@ -274,7 +381,12 @@ export default function ({ html }) {
           }
 
           qrUrlInput.addEventListener("input", renderQr);
-          qrColorInput.addEventListener("input", renderQr);
+          qrColorPreset.addEventListener("change", () => {
+            setColorControlVisibility();
+            renderQr();
+          });
+          qrColorCustomInput.addEventListener("input", renderQr);
+          qrTransparentInput.addEventListener("change", renderQr);
 
           qrDownloadButton.addEventListener("click", async () => {
             const blob = await getCanvasBlob();
