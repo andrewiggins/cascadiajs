@@ -188,8 +188,15 @@ export default function ({ html }) {
           </div>
         </div>
 
-        <script src="https://unpkg.com/qr-code-styling@1.9.2/lib/qr-code-styling.js"></script>
+        <script
+          id="qr-code-styling-script"
+          src="https://unpkg.com/qr-code-styling@1.9.2/lib/qr-code-styling.js"
+          integrity="sha384-P7sw4KeI1SDhOs6wYFsBysIIHFqMTgG4y9vunEfL8ZuV0WhnHsh9MRu9Rso17MtY"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"
+        ></script>
         <script type="module">
+          const qrLibraryScript = document.querySelector("#qr-code-styling-script");
           const qrUrlInput = document.querySelector("#qr-url");
           const qrColorPreset = document.querySelector("#qr-color-preset");
           const qrColorCustomField = document.querySelector(".qr-field-custom");
@@ -202,6 +209,7 @@ export default function ({ html }) {
           const logoPath = "/_public/images/icon.svg";
           let logoSvgText;
           let qrCode;
+          let qrLibraryLoadFailed = false;
           let renderId = 0;
 
           async function getLogoSvgText() {
@@ -217,6 +225,24 @@ export default function ({ html }) {
           function setStatus(message, type = "") {
             qrStatus.textContent = message;
             qrStatus.className = type ? \`qr-status highlight \${type}\` : "qr-status";
+          }
+
+          function reportQrLibraryLoadError(error) {
+            if (qrLibraryLoadFailed) return;
+            if (error) console.error(error);
+            qrLibraryLoadFailed = true;
+            qrCodeContainer.replaceChildren();
+            qrCode = null;
+            qrDownloadButton.disabled = true;
+            qrCopyButton.disabled = true;
+            setStatus("QR code tools could not be loaded. Please refresh or try again later.", "error");
+          }
+
+          function verifyQrLibraryLoaded() {
+            if (qrLibraryLoadFailed) return false;
+            if (window.QRCodeStyling) return true;
+            reportQrLibraryLoadError(new Error("QR code library is not available."));
+            return false;
           }
 
           function validateUrl() {
@@ -345,6 +371,8 @@ export default function ({ html }) {
           }
 
           async function renderQr() {
+            if (!verifyQrLibraryLoaded()) return;
+
             const url = validateUrl();
             const color = getQrColor();
             const transparentBackground = qrTransparentInput.checked;
@@ -391,6 +419,14 @@ export default function ({ html }) {
 
           setColorControlVisibility();
 
+          qrLibraryScript.addEventListener("error", () => {
+            reportQrLibraryLoadError(new Error("QR code library script failed to load."));
+          }, { once: true });
+
+          qrLibraryScript.addEventListener("load", () => {
+            verifyQrLibraryLoaded();
+          }, { once: true });
+
           qrUrlInput.addEventListener("input", renderQr);
           qrColorPreset.addEventListener("change", () => {
             setColorControlVisibility();
@@ -426,7 +462,9 @@ export default function ({ html }) {
             }
           });
 
-          renderQr();
+          if (verifyQrLibraryLoaded()) {
+            renderQr();
+          }
         </script>
       </simple-page>
     </main-layout>
