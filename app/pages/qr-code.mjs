@@ -85,6 +85,21 @@ export default function ({ html }) {
             padding: 16px;
           }
 
+          .qr-canvas-wrap-transparent {
+            background-color: #fff;
+            background-image:
+              linear-gradient(45deg, #d7d7d7 25%, transparent 25%),
+              linear-gradient(-45deg, #d7d7d7 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, #d7d7d7 75%),
+              linear-gradient(-45deg, transparent 75%, #d7d7d7 75%);
+            background-position:
+              0 0,
+              0 12px,
+              12px -12px,
+              -12px 0;
+            background-size: 24px 24px;
+          }
+
           #qr-code {
             align-items: center;
             display: flex;
@@ -201,6 +216,7 @@ export default function ({ html }) {
           const qrColorCustomField = document.querySelector(".qr-field-custom");
           const qrColorCustomInput = document.querySelector("#qr-color-custom");
           const qrTransparentInput = document.querySelector("#qr-transparent");
+          const qrCanvasWrap = document.querySelector(".qr-canvas-wrap");
           const qrCodeContainer = document.querySelector("#qr-code");
           const qrDownloadButton = document.querySelector("#qr-download");
           const qrCopyButton = document.querySelector("#qr-copy");
@@ -265,6 +281,10 @@ export default function ({ html }) {
 
           function setColorControlVisibility() {
             qrColorCustomField.hidden = qrColorPreset.value !== "custom";
+          }
+
+          function setTransparentPreview(transparentBackground) {
+            qrCanvasWrap.classList.toggle("qr-canvas-wrap-transparent", transparentBackground);
           }
 
           function getLogoDataUrl(color, svgText) {
@@ -336,6 +356,7 @@ export default function ({ html }) {
               const url = validateUrl();
               const color = getQrColor();
               const transparentBackground = qrTransparentInput.checked;
+              setTransparentPreview(transparentBackground);
 
               if (!url) {
                 qrCodeContainer.replaceChildren();
