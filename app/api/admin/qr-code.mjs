@@ -6,7 +6,7 @@ async function checkAuth({ session, headers }) {
 	const headerAuthorized =
 		SECRET_PASSWORD && headers["x-cascadiajs-pass"] === SECRET_PASSWORD;
 	const authorized = headerAuthorized || !!(session && session.authorized);
-	// if (!authorized) return { location: "/admin/login" };
+	if (!authorized) return { location: "/admin/login" };
 }
 
 export async function getQrCode({ path }) {
