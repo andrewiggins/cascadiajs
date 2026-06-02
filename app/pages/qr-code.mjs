@@ -424,6 +424,9 @@ export default function ({ html }) {
               return;
             }
 
+            qrCopyButton.disabled = true;
+            setStatus("Copying QR code image to clipboard...");
+
             try {
               const blob = await getQrCodeBlob();
               await navigator.clipboard.write([
@@ -433,6 +436,8 @@ export default function ({ html }) {
             } catch (error) {
               console.error(error);
               setStatus("QR code image could not be copied.", "error");
+            } finally {
+              qrCopyButton.disabled = !qrCode;
             }
           });
 
