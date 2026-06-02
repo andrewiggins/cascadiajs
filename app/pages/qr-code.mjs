@@ -196,7 +196,6 @@ export default function ({ html }) {
           referrerpolicy="no-referrer"
         ></script>
         <script type="module">
-          const qrLibraryScript = document.querySelector("#qr-code-styling-script");
           const qrUrlInput = document.querySelector("#qr-url");
           const qrColorPreset = document.querySelector("#qr-color-preset");
           const qrColorCustomField = document.querySelector(".qr-field-custom");
@@ -209,8 +208,6 @@ export default function ({ html }) {
           const logoPath = "/_public/images/icon.svg";
           let logoSvgText;
           let qrCode;
-          let qrLibraryLoadFailed = false;
-          let renderId = 0;
 
           async function getLogoSvgText() {
             if (logoSvgText) return logoSvgText;
@@ -227,10 +224,8 @@ export default function ({ html }) {
             qrStatus.className = type ? \`qr-status highlight \${type}\` : "qr-status";
           }
 
-          function reportQrLibraryLoadError(error) {
-            if (qrLibraryLoadFailed) return;
-            if (error) console.error(error);
-            qrLibraryLoadFailed = true;
+          function reportQrLibraryLoadError() {
+            console.error(new Error("QR code library is not available."));
             qrCodeContainer.replaceChildren();
             qrCode = null;
             qrDownloadButton.disabled = true;
@@ -239,9 +234,8 @@ export default function ({ html }) {
           }
 
           function verifyQrLibraryLoaded() {
-            if (qrLibraryLoadFailed) return false;
             if (window.QRCodeStyling) return true;
-            reportQrLibraryLoadError(new Error("QR code library is not available."));
+            reportQrLibraryLoadError();
             return false;
           }
 
@@ -311,8 +305,7 @@ export default function ({ html }) {
             qrColorCustomField.hidden = qrColorPreset.value !== "custom";
           }
 
-          async function getLogoDataUrl(color) {
-            const svgText = await getLogoSvgText();
+          function getLogoDataUrl(color, svgText) {
             const coloredSvg = svgText
               .replaceAll('fill="#fff"', \`fill="\${color}"\`)
               .replaceAll("fill='#fff'", \`fill="\${color}"\`);
@@ -373,24 +366,23 @@ export default function ({ html }) {
           async function renderQr() {
             if (!verifyQrLibraryLoaded()) return;
 
-            const url = validateUrl();
-            const color = getQrColor();
-            const transparentBackground = qrTransparentInput.checked;
-            const currentRenderId = ++renderId;
-
             qrDownloadButton.disabled = true;
             qrCopyButton.disabled = true;
 
-            if (!url) {
-              qrCodeContainer.replaceChildren();
-              qrCode = null;
-              setStatus("Enter a full URL, including https://.", "error");
-              return;
-            }
-
             try {
-              const logoDataUrl = await getLogoDataUrl(color);
-              if (currentRenderId !== renderId) return;
+              const svgText = await getLogoSvgText();
+              const url = validateUrl();
+              const color = getQrColor();
+              const transparentBackground = qrTransparentInput.checked;
+
+              if (!url) {
+                qrCodeContainer.replaceChildren();
+                qrCode = null;
+                setStatus("Enter a full URL, including https://.", "error");
+                return;
+              }
+
+              const logoDataUrl = getLogoDataUrl(color, svgText);
 
               updateQrCode(getQrOptions({
                 url,
@@ -419,14 +411,6 @@ export default function ({ html }) {
 
           setColorControlVisibility();
 
-          qrLibraryScript.addEventListener("error", () => {
-            reportQrLibraryLoadError(new Error("QR code library script failed to load."));
-          }, { once: true });
-
-          qrLibraryScript.addEventListener("load", () => {
-            verifyQrLibraryLoaded();
-          }, { once: true });
-
           qrUrlInput.addEventListener("input", renderQr);
           qrColorPreset.addEventListener("change", () => {
             setColorControlVisibility();
@@ -436,12 +420,20 @@ export default function ({ html }) {
           qrTransparentInput.addEventListener("change", renderQr);
 
           qrDownloadButton.addEventListener("click", async () => {
-            const blob = await getQrCodeBlob();
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "cascadiajs-qr-code.png";
-            link.click();
-            URL.revokeObjectURL(link.href);
+            if (!qrCode) {
+              setStatus("QR code image could not be created.", "error");
+              return;
+            }
+
+            try {
+              await qrCode.download({
+                extension: "png",
+                name: "cascadiajs-qr-code",
+              });
+            } catch (error) {
+              console.error(error);
+              setStatus("QR code image could not be downloaded.", "error");
+            }
           });
 
           qrCopyButton.addEventListener("click", async () => {
