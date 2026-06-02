@@ -258,6 +258,11 @@ export default function ({ html }) {
             return qrColorPreset.value;
           }
 
+          function getQrBackgroundColor(color, transparentBackground) {
+            const bgColor = color.toLowerCase() === "#ffffff" ? "#000000" : "#ffffff";
+            return transparentBackground ? "transparent" : bgColor;
+          }
+
           function setColorControlVisibility() {
             qrColorCustomField.hidden = qrColorPreset.value !== "custom";
           }
@@ -300,7 +305,7 @@ export default function ({ html }) {
                 type: "square",
               },
               backgroundOptions: {
-                color: transparentBackground ? "transparent" : "#ffffff",
+                color: getQrBackgroundColor(color, transparentBackground),
               },
               imageOptions: {
                 hideBackgroundDots: true,
