@@ -258,49 +258,6 @@ export default function ({ html }) {
             return qrColorPreset.value;
           }
 
-          function getRelativeLuminance(hexColor) {
-            const color = hexColor.replace("#", "");
-            const channels = [0, 2, 4].map((index) => {
-              const channel = Number.parseInt(color.slice(index, index + 2), 16) / 255;
-              return channel <= 0.03928
-                ? channel / 12.92
-                : ((channel + 0.055) / 1.055) ** 2.4;
-            });
-
-            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-          }
-
-          function getContrastRatio(color, background = "#ffffff") {
-            const colorLuminance = getRelativeLuminance(color);
-            const backgroundLuminance = getRelativeLuminance(background);
-            const lighter = Math.max(colorLuminance, backgroundLuminance);
-            const darker = Math.min(colorLuminance, backgroundLuminance);
-
-            return (lighter + 0.05) / (darker + 0.05);
-          }
-
-          function getReliabilityWarning(color, transparentBackground) {
-            const normalizedColor = color.toLowerCase();
-
-            if (normalizedColor === "#ffffff") {
-              return "White foreground is unlikely to scan on light backgrounds.";
-            }
-
-            if (transparentBackground) {
-              return "Transparent QR codes depend on the final placement surface for scan reliability.";
-            }
-
-            if (normalizedColor === "#ffd007") {
-              return "Yellow foreground on a white background may be difficult to scan.";
-            }
-
-            if (qrColorPreset.value === "custom" && getContrastRatio(color) < 3) {
-              return "This custom color has low contrast against a white background.";
-            }
-
-            return "";
-          }
-
           function setColorControlVisibility() {
             qrColorCustomField.hidden = qrColorPreset.value !== "custom";
           }
@@ -393,8 +350,7 @@ export default function ({ html }) {
 
               qrDownloadButton.disabled = false;
               qrCopyButton.disabled = false;
-              const reliabilityWarning = getReliabilityWarning(color, transparentBackground);
-              setStatus(reliabilityWarning, reliabilityWarning ? "warning" : "");
+              setStatus("");
             } catch (error) {
               console.error(error);
               setStatus("QR code could not be generated.", "error");
