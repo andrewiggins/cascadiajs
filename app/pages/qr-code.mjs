@@ -172,7 +172,7 @@ export default function ({ html }) {
             </div>
           </div>
           <div class="qr-checkbox">
-            <input id="qr-transparent" type="checkbox" />
+            <input id="qr-transparent" type="checkbox" checked />
             <label for="qr-transparent">Transparent background</label>
           </div>
 
